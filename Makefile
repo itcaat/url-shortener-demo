@@ -1,4 +1,4 @@
-.PHONY: help build up down logs clean test
+.PHONY: help build up down logs clean test hook
 
 help: ## Показать помощь
 	@echo "URL Shortener - Микросервисная архитектура"
@@ -121,3 +121,20 @@ jaeger: ## Открыть Jaeger UI
 
 dev: ## Режим разработки (логи в реальном времени)
 	docker-compose up --build
+
+hook: ## Установить git hook для автоматического добавления ID issue
+	@echo "🔧 Установка git hooks..."
+	@chmod +x .git-hooks/prepare-commit-msg
+	@mkdir -p .git/hooks
+	@cp .git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg
+	@chmod +x .git/hooks/prepare-commit-msg
+	@echo "✅ Git hook установлен!"
+	@echo ""
+	@echo "📝 Теперь при коммите ID issue будет автоматически добавляться"
+	@echo "   Примеры:"
+	@echo "   • feature/123-new-feature    → [#123] ваш commit message"
+	@echo "   • fix/#456-bug-fix          → [#456] ваш commit message"
+	@echo "   • feat/GH-789-improvement   → [#789] ваш commit message"
+	@echo ""
+	@echo "🔗 См. .git-hooks/README.md для подробностей"
+	@echo ""
