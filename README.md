@@ -56,6 +56,7 @@
 ✅ **Distributed Tracing** - Jaeger + OpenTelemetry для отслеживания запросов  
 ✅ **Shared Libraries** - переиспользуемые компоненты (`pkg/tracing`)  
 ✅ **CI/CD** - GitHub Actions с динамической матрицей для сборки образов  
+✅ **Multi-Platform** - поддержка AMD64 и ARM64 (Apple Silicon, Intel, ARM серверы)  
 
 ## 🚀 Быстрый старт
 
@@ -171,7 +172,7 @@ curl -L http://localhost:3002/{shortCode}
 - **[QUICKSTART.md](./QUICKSTART.md)** ⭐ - Быстрый старт за 3 минуты
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Подробное описание архитектуры системы
 - **[CI_CD.md](./CI_CD.md)** 🚀 - GitHub Actions с динамической матрицей
-- **[GIT_HOOKS_SUMMARY.md](./GIT_HOOKS_SUMMARY.md)** 🪝 - Автоматическое добавление ID issue в коммиты
+- **[MULTIPLATFORM.md](./MULTIPLATFORM.md)** 🌐 - Multi-platform builds (AMD64 + ARM64)
 - **[JAEGER_GUIDE.md](./JAEGER_GUIDE.md)** 🔍 - Руководство по Distributed Tracing
 - **[OPENTELEMETRY_EXAMPLE.md](./OPENTELEMETRY_EXAMPLE.md)** 🔧 - Пример добавления OpenTelemetry
 - **[Makefile](./Makefile)** - Команды для управления проектом

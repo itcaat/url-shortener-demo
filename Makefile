@@ -1,4 +1,4 @@
-.PHONY: help build up down logs clean test hook
+.PHONY: help build up down logs clean test hook buildx-setup buildx-build
 
 help: ## Показать помощь
 	@echo "URL Shortener - Микросервисная архитектура"
@@ -137,4 +137,25 @@ hook: ## Установить git hook для автоматического д�
 	@echo "   • feat/GH-789-improvement   → [#789] ваш commit message"
 	@echo ""
 	@echo "🔗 См. .git-hooks/README.md для подробностей"
+	@echo ""
+
+buildx-setup: ## Настроить Docker Buildx для multi-platform сборки
+	@echo "🔧 Настройка Docker Buildx..."
+	@docker buildx create --name multiplatform --use 2>/dev/null || docker buildx use multiplatform
+	@docker buildx inspect multiplatform --bootstrap
+	@echo "✅ Buildx готов для multi-platform сборки!"
+	@echo ""
+
+buildx-build: ## Собрать все сервисы для AMD64 и ARM64
+	@echo "🔨 Сборка multi-platform образов..."
+	@echo "⚠️  Это может занять некоторое время..."
+	@echo ""
+	@docker buildx build --platform linux/amd64,linux/arm64 -t api-gateway:multiplatform -f api-gateway/Dockerfile --load . || echo "Note: --load supports only single platform"
+	@docker buildx build --platform linux/amd64,linux/arm64 -t shortener-service:multiplatform -f shortener-service/Dockerfile --load . || echo "Note: --load supports only single platform"
+	@docker buildx build --platform linux/amd64,linux/arm64 -t redirect-service:multiplatform -f redirect-service/Dockerfile --load . || echo "Note: --load supports only single platform"
+	@docker buildx build --platform linux/amd64,linux/arm64 -t analytics-service:multiplatform -f analytics-service/Dockerfile --load . || echo "Note: --load supports only single platform"
+	@docker buildx build --platform linux/amd64,linux/arm64 -t frontend:multiplatform -f frontend/Dockerfile --load . || echo "Note: --load supports only single platform"
+	@echo ""
+	@echo "✅ Сборка завершена!"
+	@echo "💡 Для локальной разработки используйте: make up-build"
 	@echo ""

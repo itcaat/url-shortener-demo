@@ -50,19 +50,29 @@ jobs:
         id: set-matrix
         run: |
           # Находим все директории с Dockerfile
-          ALL_SERVICES=$(find . -maxdepth 2 -name "Dockerfile" -type f | sed 's|^\./||' | sed 's|/Dockerfile$||' | jq -R -s -c 'split("\n")[:-1]')
+          ALL_SERVICES=$(find . -maxdepth 2 -name "Dockerfile" -type f | sed 's|^\./||' | sed 's|/Dockerfile$||' | jq -R -s 'split("\n") | map(select(length > 0))')
           echo "All services with Dockerfile: $ALL_SERVICES"
           
-          CHANGED_DIRS='${{ steps.changed-files.outputs.all_changed_files }}'
+          # Получаем измененные файлы и убираем экранирование
+          CHANGED_DIRS_RAW='${{ steps.changed-files.outputs.all_changed_files }}'
+          CHANGED_DIRS=$(echo "$CHANGED_DIRS_RAW" | sed 's/\\"/"/g')
+          echo "Changed directories: $CHANGED_DIRS"
           
           # Если изменился pkg/, пересобираем все Go сервисы (с go.mod)
-          if echo "$CHANGED_DIRS" | grep -q "pkg"; then
-            SERVICES=$(find . -maxdepth 2 -name "go.mod" -type f | sed 's|^\./||' | sed 's|/go.mod$||' | jq -R -s -c 'split("\n")[:-1]')
+          if echo "$CHANGED_DIRS" | jq -e 'index("pkg")' > /dev/null 2>&1; then
+            SERVICES=$(find . -maxdepth 2 -name "go.mod" -type f | sed 's|^\./||' | sed 's|/go.mod$||' | jq -R -s 'split("\n") | map(select(length > 0))')
             echo "pkg/ changed, rebuilding all Go services: $SERVICES"
           else
             # Фильтруем: оставляем только измененные директории с Dockerfile
-            SERVICES=$(echo "$CHANGED_DIRS" | jq -c --argjson all "$ALL_SERVICES" '[.[] | select(. as $dir | $all | index($dir))]')
+            SERVICES=$(jq -nc --argjson all "$ALL_SERVICES" --argjson changed "$CHANGED_DIRS" \
+              '$changed | map(select(. as $dir | $all | index($dir)))')
             echo "Changed services: $SERVICES"
+          fi
+          
+          # Если нет сервисов для сборки, создаем пустой массив
+          if [ "$SERVICES" = "[]" ] || [ -z "$SERVICES" ]; then
+            echo "No services to build"
+            SERVICES="[]"
           fi
           
           echo "matrix={\"service\":$SERVICES}" >> "$GITHUB_OUTPUT"
@@ -105,7 +115,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.service }}/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
