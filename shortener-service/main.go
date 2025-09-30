@@ -79,7 +79,7 @@ func main() {
 
 	go func() {
 		log.Printf("[Shortener Service] Server starting on port %s\n", port)
-		log.Printf("[Shortener Service] Connected to Redis at %s:%s\n",
+		log.Printf("[Shortener Service] Connected to redis at %s:%s\n",
 			getEnv("REDIS_HOST", "localhost"),
 			getEnv("REDIS_PORT", "6379"))
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

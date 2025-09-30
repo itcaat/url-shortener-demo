@@ -30,7 +30,7 @@ jobs:
         id: set-matrix
         run: |
           # Находим все директории с Dockerfile
-          SERVICES=$(find . -maxdepth 2 -name "Dockerfile" -type f | sed 's|^\./||' | sed 's|/Dockerfile$||' | jq -R -s -c 'split("\n")[:-1]')
+          SERVICES=$(find . -maxdepth 2 -name "Dockerfile" -type f | sed 's|^\./||' | sed 's|/Dockerfile$||' | jq -R -s 'split("\n") | map(select(length > 0))')
           echo "All services: $SERVICES"
           echo "matrix={\"service\":$SERVICES}" >> "$GITHUB_OUTPUT"
 
@@ -71,7 +71,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.service }}/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
