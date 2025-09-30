@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/itcaat/url-shortener-demo/pkg/tracing"
 	"github.com/rs/cors"
 	"github.com/segmentio/kafka-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
 var (
@@ -52,6 +54,14 @@ type HealthResponse struct {
 }
 
 func main() {
+	// Initialize tracing
+	tp, err := tracing.InitTracer("analytics-service")
+	if err != nil {
+		log.Printf("[Analytics Service] Failed to initialize tracer: %v", err)
+	} else {
+		defer tracing.Shutdown(context.Background(), tp)
+	}
+
 	initMongoDB()
 	defer mongoClient.Disconnect(ctx)
 
@@ -63,6 +73,9 @@ func main() {
 
 	// HTTP сервер для статистики
 	router := mux.NewRouter()
+
+	// Add OpenTelemetry middleware
+	router.Use(otelmux.Middleware("analytics-service"))
 
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/stats/{shortCode}", statsHandler).Methods("GET")

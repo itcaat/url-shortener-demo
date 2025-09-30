@@ -2,16 +2,21 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/itcaat/url-shortener-demo/pkg/tracing"
 	"github.com/rs/cors"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
 var (
@@ -42,7 +47,18 @@ type InfoResponse struct {
 }
 
 func main() {
+	// Initialize tracing
+	tp, err := tracing.InitTracer("api-gateway")
+	if err != nil {
+		log.Printf("[API Gateway] Failed to initialize tracer: %v", err)
+	} else {
+		defer tracing.Shutdown(context.Background(), tp)
+	}
+
 	router := mux.NewRouter()
+
+	// Add OpenTelemetry middleware for automatic tracing
+	router.Use(otelmux.Middleware("api-gateway"))
 
 	// Health check
 	router.HandleFunc("/health", healthHandler).Methods("GET")
@@ -60,13 +76,35 @@ func main() {
 		AllowedHeaders: []string{"*"},
 	}).Handler(router)
 
-	log.Printf("[API Gateway] Server starting on port %s\n", port)
-	log.Printf("[API Gateway] Shortener Service: %s\n", shortenerServiceURL)
-	log.Printf("[API Gateway] Analytics Service: %s\n", analyticsServiceURL)
-
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
-		log.Fatal(err)
+	// Graceful shutdown
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: handler,
 	}
+
+	go func() {
+		log.Printf("[API Gateway] Server starting on port %s\n", port)
+		log.Printf("[API Gateway] Shortener Service: %s\n", shortenerServiceURL)
+		log.Printf("[API Gateway] Analytics Service: %s\n", analyticsServiceURL)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("[API Gateway] Shutting down gracefully...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatal("[API Gateway] Server forced to shutdown:", err)
+	}
+
+	log.Println("[API Gateway] Server exited")
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

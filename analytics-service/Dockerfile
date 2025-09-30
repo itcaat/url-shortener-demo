@@ -2,10 +2,14 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod ./
+# Copy shared tracing package
+COPY pkg/ /pkg/
+
+# Copy service files
+COPY analytics-service/go.mod ./
 RUN go mod download
 
-COPY . .
+COPY analytics-service/ .
 RUN CGO_ENABLED=0 GOOS=linux go build -o analytics-service .
 
 FROM alpine:latest

@@ -73,9 +73,35 @@ services:
       timeout: 10s
       retries: 5
 
+  # Jaeger - Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.52
+    container_name: url-shortener-jaeger
+    ports:
+      - "5775:5775/udp"   # Accept zipkin.thrift over compact thrift protocol
+      - "6831:6831/udp"   # Accept jaeger.thrift over compact thrift protocol
+      - "6832:6832/udp"   # Accept jaeger.thrift over binary thrift protocol
+      - "5778:5778"       # Serve configs
+      - "16686:16686"     # Serve frontend (UI)
+      - "14268:14268"     # Accept jaeger.thrift directly from clients
+      - "14250:14250"     # Accept model.proto (gRPC)
+      - "9411:9411"       # Zipkin compatible endpoint
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # API Gateway - точка входа
   api-gateway:
-    build: ./api-gateway
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
     container_name: url-shortener-gateway
     ports:
       - "3000:3000"
@@ -83,16 +109,23 @@ services:
       - PORT=3000
       - SHORTENER_SERVICE_URL=http://shortener-service:3001
       - ANALYTICS_SERVICE_URL=http://analytics-service:3003
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
     depends_on:
       - shortener-service
       - analytics-service
+      - jaeger
     networks:
       - microservices-network
     restart: unless-stopped
 
   # Shortener Service - создание коротких URL
   shortener-service:
-    build: ./shortener-service
+    build:
+      context: .
+      dockerfile: shortener-service/Dockerfile
     container_name: url-shortener-shortener
     ports:
       - "3001:3001"
@@ -100,8 +133,14 @@ services:
       - PORT=3001
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
     depends_on:
       redis:
+        condition: service_healthy
+      jaeger:
         condition: service_healthy
     networks:
       - microservices-network
@@ -109,7 +148,9 @@ services:
 
   # Redirect Service - перенаправление
   redirect-service:
-    build: ./redirect-service
+    build:
+      context: .
+      dockerfile: redirect-service/Dockerfile
     container_name: url-shortener-redirect
     ports:
       - "3002:3002"
@@ -119,10 +160,16 @@ services:
       - REDIS_PORT=6379
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=url-clicks
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
     depends_on:
       redis:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      jaeger:
         condition: service_healthy
     networks:
       - microservices-network
@@ -130,7 +177,9 @@ services:
 
   # Analytics Service - статистика переходов
   analytics-service:
-    build: ./analytics-service
+    build:
+      context: .
+      dockerfile: analytics-service/Dockerfile
     container_name: url-shortener-analytics
     ports:
       - "3003:3003"
@@ -140,10 +189,16 @@ services:
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=url-clicks
       - KAFKA_GROUP_ID=analytics-consumer-group
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
     depends_on:
       mongodb:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      jaeger:
         condition: service_healthy
     networks:
       - microservices-network

@@ -2,10 +2,14 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod ./
+# Copy shared tracing package
+COPY pkg/ /pkg/
+
+# Copy service files
+COPY redirect-service/go.mod ./
 RUN go mod download
 
-COPY . .
+COPY redirect-service/ .
 RUN CGO_ENABLED=0 GOOS=linux go build -o redirect-service .
 
 FROM alpine:latest

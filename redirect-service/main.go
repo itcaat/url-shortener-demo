@@ -6,13 +6,17 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
+	"github.com/itcaat/url-shortener-demo/pkg/tracing"
 	"github.com/rs/cors"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
 var (
@@ -36,11 +40,22 @@ type ClickEvent struct {
 }
 
 func main() {
+	// Initialize tracing
+	tp, err := tracing.InitTracer("redirect-service")
+	if err != nil {
+		log.Printf("[Redirect Service] Failed to initialize tracer: %v", err)
+	} else {
+		defer tracing.Shutdown(context.Background(), tp)
+	}
+
 	initRedis()
 	initKafka()
 	defer kafkaWriter.Close()
 
 	router := mux.NewRouter()
+
+	// Add OpenTelemetry middleware
+	router.Use(otelmux.Middleware("redirect-service"))
 
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/{shortCode}", redirectHandler).Methods("GET")
@@ -51,17 +66,38 @@ func main() {
 		AllowedHeaders: []string{"*"},
 	}).Handler(router)
 
-	log.Printf("[Redirect Service] Server starting on port %s\n", port)
-	log.Printf("[Redirect Service] Connected to Redis at %s:%s\n",
-		getEnv("REDIS_HOST", "localhost"),
-		getEnv("REDIS_PORT", "6379"))
-	log.Printf("[Redirect Service] Connected to Kafka at %s, topic: %s\n",
-		getEnv("KAFKA_BROKERS", "localhost:9092"),
-		getEnv("KAFKA_TOPIC", "url-clicks"))
-
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
-		log.Fatal(err)
+	// Graceful shutdown
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: handler,
 	}
+
+	go func() {
+		log.Printf("[Redirect Service] Server starting on port %s\n", port)
+		log.Printf("[Redirect Service] Connected to Redis at %s:%s\n",
+			getEnv("REDIS_HOST", "localhost"),
+			getEnv("REDIS_PORT", "6379"))
+		log.Printf("[Redirect Service] Connected to Kafka at %s, topic: %s\n",
+			getEnv("KAFKA_BROKERS", "localhost:9092"),
+			getEnv("KAFKA_TOPIC", "url-clicks"))
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("[Redirect Service] Shutting down gracefully...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatal("[Redirect Service] Server forced to shutdown:", err)
+	}
+
+	log.Println("[Redirect Service] Server exited")
 }
 
 func initRedis() {

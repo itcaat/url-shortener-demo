@@ -115,5 +115,9 @@ kafka-consume: ## Читать сообщения из Kafka топика url-cl
 		--topic url-clicks \
 		--from-beginning
 
+jaeger: ## Открыть Jaeger UI
+	@echo "🔍 Opening Jaeger UI at http://localhost:16686"
+	@open http://localhost:16686 2>/dev/null || xdg-open http://localhost:16686 2>/dev/null || echo "Please open http://localhost:16686 in your browser"
+
 dev: ## Режим разработки (логи в реальном времени)
 	docker-compose up --build

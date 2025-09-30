@@ -2,10 +2,14 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod ./
+# Copy shared tracing package
+COPY pkg/ /pkg/
+
+# Copy service files
+COPY api-gateway/go.mod ./
 RUN go mod download
 
-COPY . .
+COPY api-gateway/ .
 RUN CGO_ENABLED=0 GOOS=linux go build -o api-gateway .
 
 FROM alpine:latest
