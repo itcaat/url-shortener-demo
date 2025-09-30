@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener - Микросервисная архитектура</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .architecture-badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
+        .short-url {
+            font-size: 1.2em;
+            color: #667eea;
+            word-break: break-all;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+
+        .copy-btn {
+            background: #28a745;
+            padding: 10px 20px;
+            margin-top: 10px;
+            width: auto;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+
+        .stats-section {
+            margin-top: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .microservices-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .microservices-info h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .service-list {
+            list-style: none;
+        }
+
+        .service-list li {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .service-name {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <span class="architecture-badge">🏗️ Микросервисная архитектура</span>
+            <h1>🔗 URL Shortener</h1>
+            <p class="subtitle">Демонстрация микросервисов на Go + Kafka + Redis + MongoDB</p>
+
+            <div class="input-group">
+                <label for="originalUrl">Введите URL для сокращения:</label>
+                <input 
+                    type="url" 
+                    id="originalUrl" 
+                    placeholder="https://example.com/very/long/url" 
+                    required
+                >
+            </div>
+
+            <button onclick="shortenUrl()" id="shortenBtn">
+                Сократить URL
+            </button>
+
+            <div id="result" class="result"></div>
+
+            <div class="microservices-info">
+                <h3>📦 Архитектура системы:</h3>
+                <ul class="service-list">
+                    <li><span class="service-name">api-gateway</span> - Точка входа, маршрутизация запросов</li>
+                    <li><span class="service-name">shortener-service</span> - Создание коротких URL (Go + Redis)</li>
+                    <li><span class="service-name">redirect-service</span> - Перенаправление (Go + Redis + Kafka Producer)</li>
+                    <li><span class="service-name">analytics-service</span> - Статистика (Go + MongoDB + Kafka Consumer)</li>
+                    <li><span class="service-name">kafka</span> - Шина сообщений для асинхронного взаимодействия</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Статистика</h2>
+            <button onclick="loadStats()" id="statsBtn">Обновить статистику</button>
+            
+            <div class="stats-section">
+                <div class="stats-grid" id="statsGrid">
+                    <!-- Статистика будет загружена динамически -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+        const REDIRECT_BASE = 'http://localhost:3002';
+
+        async function shortenUrl() {
+            const urlInput = document.getElementById('originalUrl');
+            const url = urlInput.value.trim();
+            const resultDiv = document.getElementById('result');
+            const btn = document.getElementById('shortenBtn');
+
+            if (!url) {
+                showResult('Пожалуйста, введите URL', 'error');
+                return;
+            }
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = 'Создание... <span class="loading"></span>';
+
+                const response = await fetch(`${API_BASE}/shorten`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const shortUrl = `${REDIRECT_BASE}/${data.shortCode}`;
+                    resultDiv.className = 'result success';
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `
+                        <p><strong>✅ URL успешно сокращён!</strong></p>
+                        <div class="short-url">${shortUrl}</div>
+                        <p><small>Оригинальный URL: ${data.originalUrl}</small></p>
+                        <button class="copy-btn" onclick="copyToClipboard('${shortUrl}')">📋 Копировать</button>
+                    `;
+                    urlInput.value = '';
+                    loadStats(); // Обновляем статистику
+                } else {
+                    showResult(`Ошибка: ${data.error || 'Неизвестная ошибка'}`, 'error');
+                }
+            } catch (error) {
+                showResult(`Ошибка подключения: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Сократить URL';
+            }
+        }
+
+        async function loadStats() {
+            const statsGrid = document.getElementById('statsGrid');
+            const btn = document.getElementById('statsBtn');
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = 'Загрузка... <span class="loading"></span>';
+
+                const response = await fetch(`${API_BASE}/stats`);
+                const data = await response.json();
+
+                if (response.ok && data.stats && data.stats.length > 0) {
+                    statsGrid.innerHTML = data.stats.map(stat => `
+                        <div class="stat-card">
+                            <div class="stat-number">${stat.totalClicks}</div>
+                            <div class="stat-label">переходов</div>
+                            <div style="margin-top: 10px; font-size: 0.9em;">
+                                ${stat.shortCode}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    statsGrid.innerHTML = '<p style="text-align: center; color: #666;">Статистика пока отсутствует</p>';
+                }
+            } catch (error) {
+                statsGrid.innerHTML = `<p style="text-align: center; color: #dc3545;">Ошибка загрузки: ${error.message}</p>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Обновить статистику';
+            }
+        }
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<p>${message}</p>`;
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Скопировано в буфер обмена!');
+            }).catch(err => {
+                alert('❌ Ошибка копирования: ' + err);
+            });
+        }
+
+        // Обработчик Enter
+        document.getElementById('originalUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                shortenUrl();
+            }
+        });
+
+        // Загрузка статистики при загрузке страницы
+        window.addEventListener('load', loadStats);
+    </script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+services:
+  # Redis для хранения маппинга URL
+  redis:
+    image: redis:7-alpine
+    container_name: url-shortener-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB для аналитики
+  mongodb:
+    image: mongo:7
+    container_name: url-shortener-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: analytics
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper для Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: url-shortener-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka - шина сообщений
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: url-shortener-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # API Gateway - точка входа
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: url-shortener-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - SHORTENER_SERVICE_URL=http://shortener-service:3001
+      - ANALYTICS_SERVICE_URL=http://analytics-service:3003
+    depends_on:
+      - shortener-service
+      - analytics-service
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Shortener Service - создание коротких URL
+  shortener-service:
+    build:
+      context: .
+      dockerfile: shortener-service/Dockerfile
+    container_name: url-shortener-shortener
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Redirect Service - перенаправление
+  redirect-service:
+    build:
+      context: .
+      dockerfile: redirect-service/Dockerfile
+    container_name: url-shortener-redirect
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=url-clicks
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Analytics Service - статистика переходов
+  analytics-service:
+    build:
+      context: .
+      dockerfile: analytics-service/Dockerfile
+    container_name: url-shortener-analytics
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - MONGODB_URI=mongodb://mongodb:27017/analytics
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC=url-clicks
+      - KAFKA_GROUP_ID=analytics-consumer-group
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Frontend - веб-интерфейс
+  frontend:
+    build: ./frontend
+    container_name: url-shortener-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api-gateway
+      - redirect-service
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+networks:
+  microservices-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:

@@ -1,0 +1,83 @@
+#!/bin/bash
+#
+# Git hook для автоматического добавления ID таска в commit message
+#
+# Установка: make hook
+#
+# Формат названия веток:
+#   feature/123-description      -> [#123]
+#   bugfix/456-fix-bug          -> [#456]
+#   feat/#789-new-feature       -> [#789]
+#   fix/GH-123-hotfix           -> [#123]
+#
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+# Пропускаем для merge, squash и других специальных коммитов
+if [ -n "$COMMIT_SOURCE" ]; then
+  exit 0
+fi
+
+# Получаем текущее название ветки
+BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+# Если не получили название ветки (detached HEAD и т.д.), выходим
+if [ -z "$BRANCH_NAME" ]; then
+  exit 0
+fi
+
+# Игнорируем основные ветки
+if [[ "$BRANCH_NAME" =~ ^(main|master|develop|dev)$ ]]; then
+  exit 0
+fi
+
+# Извлекаем ID таска из названия ветки
+# Поддерживаемые форматы:
+#   feature/123-description     -> #123
+#   bugfix/#456-fix            -> #456
+#   fix/GH-789-hotfix          -> #789
+#   1-demo-build-matrix        -> #1 (без префикса)
+#   TASK-123-feature           -> TASK-123 (legacy support)
+TASK_ID=""
+
+# Паттерн 1: GitHub Issues - требует / в начале (feature/123-description)
+if [[ "$BRANCH_NAME" =~ /+#?([0-9]+)- ]]; then
+  TASK_ID="#${BASH_REMATCH[1]}"
+# Паттерн 2: GitHub Issues - GH-префикс (fix/GH-789-hotfix)
+elif [[ "$BRANCH_NAME" =~ /GH-([0-9]+) ]]; then
+  TASK_ID="#${BASH_REMATCH[1]}"
+# Паттерн 3: GitHub Issues - без префикса ветки (1-demo, 123-fix)
+elif [[ "$BRANCH_NAME" =~ ^([0-9]+)- ]]; then
+  TASK_ID="#${BASH_REMATCH[1]}"
+# Паттерн 4: Legacy - TASK-123 или PROJ-456 (поддержка Jira и т.д.)
+elif [[ "$BRANCH_NAME" =~ ([A-Z]+-[0-9]+) ]]; then
+  TASK_ID="${BASH_REMATCH[1]}"
+fi
+
+# Если ID таска не найден, выходим
+if [ -z "$TASK_ID" ]; then
+  exit 0
+fi
+
+# Читаем текущий commit message
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Экранируем # для grep если есть
+TASK_ID_ESCAPED=$(echo "$TASK_ID" | sed 's/#/\\#/g')
+
+# Проверяем, есть ли уже ID таска в сообщении
+if echo "$COMMIT_MSG" | grep -qE "\[$TASK_ID_ESCAPED\]|\b$TASK_ID_ESCAPED\b|$TASK_ID_ESCAPED:"; then
+  # ID уже есть, ничего не делаем
+  exit 0
+fi
+
+# Пропускаем пустые коммиты и комментарии
+if [[ -z "$COMMIT_MSG" ]] || [[ "$COMMIT_MSG" =~ ^# ]]; then
+  exit 0
+fi
+
+# Добавляем ID таска в начало commit message
+echo "[$TASK_ID] $COMMIT_MSG" > "$COMMIT_MSG_FILE"
+
+exit 0

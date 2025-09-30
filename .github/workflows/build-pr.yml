@@ -1,0 +1,139 @@
+name: Build Pull Request
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  changed-services:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      any_changed: ${{ steps.changed-files.outputs.any_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed services
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          dir_names: true
+          dir_names_max_depth: 1
+          json: true
+          files: |
+            **/*
+          files_ignore: |
+            **/*.md
+            .github/**
+            *.md
+
+      - name: List all changed files
+        run: |
+          echo "Changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          # Находим все директории с Dockerfile
+          ALL_SERVICES=$(find . -maxdepth 2 -name "Dockerfile" -type f | sed 's|^\./||' | sed 's|/Dockerfile$||' | jq -R -s 'split("\n") | map(select(length > 0))' | jq -c .)
+          echo "All services with Dockerfile: $ALL_SERVICES"
+          
+          # Получаем измененные файлы и убираем экранирование
+          CHANGED_DIRS_RAW='${{ steps.changed-files.outputs.all_changed_files }}'
+          CHANGED_DIRS=$(echo "$CHANGED_DIRS_RAW" | sed 's/\\"/"/g')
+          echo "Changed directories: $CHANGED_DIRS"
+          
+          # Если изменился pkg/, пересобираем все Go сервисы (с go.mod)
+          if echo "$CHANGED_DIRS" | jq -e 'index("pkg")' > /dev/null 2>&1; then
+            SERVICES=$(find . -maxdepth 2 -name "go.mod" -type f | sed 's|^\./||' | sed 's|/go.mod$||' | jq -R -s 'split("\n") | map(select(length > 0))' | jq -c .)
+            echo "pkg/ changed, rebuilding all Go services: $SERVICES"
+          else
+            # Фильтруем: оставляем только измененные директории с Dockerfile
+            SERVICES=$(jq -nc --argjson all "$ALL_SERVICES" --argjson changed "$CHANGED_DIRS" \
+              '$changed | map(select(. as $dir | $all | index($dir)))' | jq -c .)
+            echo "Changed services: $SERVICES"
+          fi
+          
+          # Если нет сервисов для сборки, создаем пустой массив
+          if [ "$SERVICES" = "[]" ] || [ -z "$SERVICES" ]; then
+            echo "No services to build"
+            SERVICES="[]"
+          fi
+          
+          echo "matrix={\"service\":$SERVICES}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [changed-services]
+    if: ${{ needs.changed-services.outputs.any_changed == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changed-services.outputs.matrix) }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=pr
+            type=sha,prefix=pr-${{ github.event.pull_request.number }}-
+            type=raw,value=pr-${{ github.event.pull_request.number }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Add PR comment
+        uses: mshick/add-pr-comment@v2
+        with:
+          message: |
+            ✅ **${{ matrix.service }}** successfully built!
+            
+            **Images:**
+            ```
+            ${{ steps.meta.outputs.tags }}
+            ```
+            
+            **Pull command:**
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:pr-${{ github.event.pull_request.number }}
+            ```
+          message-id: build-${{ matrix.service }}
