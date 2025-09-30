@@ -55,6 +55,7 @@
 ✅ **Fault Tolerance** - падение одного сервиса не роняет всю систему  
 ✅ **Distributed Tracing** - Jaeger + OpenTelemetry для отслеживания запросов  
 ✅ **Shared Libraries** - переиспользуемые компоненты (`pkg/tracing`)  
+✅ **CI/CD** - GitHub Actions с динамической матрицей для сборки образов  
 
 ## 🚀 Быстрый старт
 
@@ -166,6 +167,7 @@ curl -L http://localhost:3002/{shortCode}
 
 - **[QUICKSTART.md](./QUICKSTART.md)** ⭐ - Быстрый старт за 3 минуты
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Подробное описание архитектуры системы
+- **[CI_CD.md](./CI_CD.md)** 🚀 - GitHub Actions с динамической матрицей
 - **[JAEGER_GUIDE.md](./JAEGER_GUIDE.md)** 🔍 - Руководство по Distributed Tracing
 - **[OPENTELEMETRY_EXAMPLE.md](./OPENTELEMETRY_EXAMPLE.md)** 🔧 - Пример добавления OpenTelemetry
 - **[Makefile](./Makefile)** - Команды для управления проектом
@@ -178,12 +180,19 @@ curl -L http://localhost:3002/{shortCode}
 ├── 📄 README.md                     # Основная документация
 ├── 📄 QUICKSTART.md                 # Быстрый старт за 3 минуты
 ├── 📄 ARCHITECTURE.md               # Подробная архитектура
+├── 📄 CI_CD.md                      # 🆕 GitHub Actions workflows
 ├── 📄 PROJECT_OVERVIEW.md           # Обзор проекта
 │
 ├── 🐳 docker-compose.yml            # Оркестрация всех сервисов
 ├── 📝 Makefile                      # Удобные команды
 ├── 🔧 .gitignore                    # Git ignore
 ├── 🔧 .dockerignore                 # Docker ignore
+│
+├── 📁 .github/                      # 🆕 GitHub Actions
+│   └── workflows/                   # CI/CD workflows
+│       ├── build-pr.yml             # Сборка PR с динамической матрицей
+│       ├── build-main.yml           # Сборка main после мержа
+│       └── build-all.yml            # Ручная сборка всех сервисов
 │
 ├── 📁 api-gateway/                  # Микросервис: API Gateway
 │   ├── main.go                      # Go код (маршрутизация)
