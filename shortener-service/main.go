@@ -47,12 +47,18 @@ type HealthResponse struct {
 }
 
 func main() {
-	// Initialize tracing
-	tp, err := tracing.InitTracer("shortener-service")
-	if err != nil {
-		log.Printf("[Shortener Service] Failed to initialize tracer: %v", err)
+	// Initialize tracing (опционально, только если JAEGER_AGENT_HOST задан)
+	if jaegerHost := os.Getenv("JAEGER_AGENT_HOST"); jaegerHost != "" {
+		log.Println("[Shortener Service] Initializing distributed tracing...")
+		tp, err := tracing.InitTracer("shortener-service")
+		if err != nil {
+			log.Printf("[Shortener Service] ⚠️  Failed to initialize tracer: %v", err)
+		} else {
+			defer tracing.Shutdown(context.Background(), tp)
+			log.Println("[Shortener Service] ✅ Distributed tracing enabled")
+		}
 	} else {
-		defer tracing.Shutdown(context.Background(), tp)
+		log.Println("[Shortener Service] ℹ️  Distributed tracing disabled (JAEGER_AGENT_HOST not set)")
 	}
 
 	initRedis()

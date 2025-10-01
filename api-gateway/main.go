@@ -47,12 +47,18 @@ type InfoResponse struct {
 }
 
 func main() {
-	// Initialize tracing
-	tp, err := tracing.InitTracer("api-gateway")
-	if err != nil {
-		log.Printf("[API Gateway] Failed to initialize tracer: %v", err)
+	// Initialize tracing (опционально, только если JAEGER_AGENT_HOST задан)
+	if jaegerHost := os.Getenv("JAEGER_AGENT_HOST"); jaegerHost != "" {
+		log.Println("[API Gateway] Initializing distributed tracing...")
+		tp, err := tracing.InitTracer("api-gateway")
+		if err != nil {
+			log.Printf("[API Gateway] ⚠️  Failed to initialize tracer: %v", err)
+		} else {
+			defer tracing.Shutdown(context.Background(), tp)
+			log.Println("[API Gateway] ✅ Distributed tracing enabled")
+		}
 	} else {
-		defer tracing.Shutdown(context.Background(), tp)
+		log.Println("[API Gateway] ℹ️  Distributed tracing disabled (JAEGER_AGENT_HOST not set)")
 	}
 
 	router := mux.NewRouter()

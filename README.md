@@ -77,6 +77,9 @@ make help
 # Собрать и запустить все сервисы
 make up-build
 
+# Запустить с Jaeger (distributed tracing)
+make up-debug
+
 # Установить git hooks (автодобавление ID issue)
 make hook
 
@@ -93,11 +96,14 @@ make logs
 #### Вариант 2: Напрямую через Docker Compose
 
 ```bash
-# Запустить все сервисы
+# Запустить все сервисы (без Jaeger)
 docker-compose up --build
 
 # Или в фоновом режиме
 docker-compose up -d --build
+
+# С Jaeger для distributed tracing
+docker-compose -f docker-compose.yml -f docker-compose.debug.yml up --build
 ```
 
 ### Проверка работы

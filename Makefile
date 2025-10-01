@@ -1,4 +1,4 @@
-.PHONY: help build up down logs clean test hook buildx-setup buildx-build
+.PHONY: help build up up-debug down logs clean test hook buildx-setup buildx-build
 
 help: ## Показать помощь
 	@echo "URL Shortener - Микросервисная архитектура"
@@ -27,6 +27,19 @@ up-build: ## Собрать и запустить все сервисы
 	@echo "🌐 Frontend:        http://localhost:8080"
 	@echo "🔌 API Gateway:    http://localhost:3000"
 	@echo "📊 Redirect:       http://localhost:3002"
+	@echo ""
+	@echo "💡 Для запуска с Jaeger: make up-debug"
+	@echo ""
+
+up-debug: ## Запустить все сервисы с Jaeger (distributed tracing)
+	docker-compose -f docker-compose.yml -f docker-compose.debug.yml up -d --build
+	@echo ""
+	@echo "✅ Все сервисы запущены с Jaeger!"
+	@echo ""
+	@echo "🌐 Frontend:        http://localhost:8080"
+	@echo "🔌 API Gateway:    http://localhost:3000"
+	@echo "📊 Redirect:       http://localhost:3002"
+	@echo "🔍 Jaeger UI:      http://localhost:16686"
 	@echo ""
 
 down: ## Остановить все сервисы

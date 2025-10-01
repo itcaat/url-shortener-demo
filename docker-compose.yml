@@ -73,29 +73,7 @@ services:
       timeout: 10s
       retries: 5
 
-  # Jaeger - Distributed Tracing
-  jaeger:
-    image: jaegertracing/all-in-one:1.52
-    container_name: url-shortener-jaeger
-    ports:
-      - "5775:5775/udp"   # Accept zipkin.thrift over compact thrift protocol
-      - "6831:6831/udp"   # Accept jaeger.thrift over compact thrift protocol
-      - "6832:6832/udp"   # Accept jaeger.thrift over binary thrift protocol
-      - "5778:5778"       # Serve configs
-      - "16686:16686"     # Serve frontend (UI)
-      - "14268:14268"     # Accept jaeger.thrift directly from clients
-      - "14250:14250"     # Accept model.proto (gRPC)
-      - "9411:9411"       # Zipkin compatible endpoint
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
-    networks:
-      - microservices-network
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # Jaeger перенесен в docker-compose.debug.yml
 
   # API Gateway - точка входа
   api-gateway:
@@ -109,14 +87,11 @@ services:
       - PORT=3000
       - SHORTENER_SERVICE_URL=http://shortener-service:3001
       - ANALYTICS_SERVICE_URL=http://analytics-service:3003
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
-      - JAEGER_SAMPLER_TYPE=const
-      - JAEGER_SAMPLER_PARAM=1
+      # Jaeger переменные задаются только в docker-compose.debug.yml
     depends_on:
       - shortener-service
       - analytics-service
-      - jaeger
+      # jaeger опционален (запускается с --profile debug)
     networks:
       - microservices-network
     restart: unless-stopped
@@ -133,15 +108,11 @@ services:
       - PORT=3001
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
-      - JAEGER_SAMPLER_TYPE=const
-      - JAEGER_SAMPLER_PARAM=1
+      # Jaeger переменные задаются только в docker-compose.debug.yml
     depends_on:
       redis:
         condition: service_healthy
-      jaeger:
-        condition: service_healthy
+      # jaeger опционален (запускается с --profile debug)
     networks:
       - microservices-network
     restart: unless-stopped
@@ -160,17 +131,13 @@ services:
       - REDIS_PORT=6379
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=url-clicks
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
-      - JAEGER_SAMPLER_TYPE=const
-      - JAEGER_SAMPLER_PARAM=1
+      # Jaeger переменные задаются только в docker-compose.debug.yml
     depends_on:
       redis:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      jaeger:
-        condition: service_healthy
+      # jaeger опционален (запускается с --profile debug)
     networks:
       - microservices-network
     restart: unless-stopped
@@ -189,17 +156,13 @@ services:
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_TOPIC=url-clicks
       - KAFKA_GROUP_ID=analytics-consumer-group
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
-      - JAEGER_SAMPLER_TYPE=const
-      - JAEGER_SAMPLER_PARAM=1
+      # Jaeger переменные задаются только в docker-compose.debug.yml
     depends_on:
       mongodb:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      jaeger:
-        condition: service_healthy
+      # jaeger опционален (запускается с --profile debug)
     networks:
       - microservices-network
     restart: unless-stopped

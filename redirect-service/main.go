@@ -40,12 +40,18 @@ type ClickEvent struct {
 }
 
 func main() {
-	// Initialize tracing
-	tp, err := tracing.InitTracer("redirect-service")
-	if err != nil {
-		log.Printf("[Redirect Service] Failed to initialize tracer: %v", err)
+	// Initialize tracing (опционально, только если JAEGER_AGENT_HOST задан)
+	if jaegerHost := os.Getenv("JAEGER_AGENT_HOST"); jaegerHost != "" {
+		log.Println("[Redirect Service] Initializing distributed tracing...")
+		tp, err := tracing.InitTracer("redirect-service")
+		if err != nil {
+			log.Printf("[Redirect Service] ⚠️  Failed to initialize tracer: %v", err)
+		} else {
+			defer tracing.Shutdown(context.Background(), tp)
+			log.Println("[Redirect Service] ✅ Distributed tracing enabled")
+		}
 	} else {
-		defer tracing.Shutdown(context.Background(), tp)
+		log.Println("[Redirect Service] ℹ️  Distributed tracing disabled (JAEGER_AGENT_HOST not set)")
 	}
 
 	initRedis()

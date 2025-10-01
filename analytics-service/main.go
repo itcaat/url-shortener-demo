@@ -54,12 +54,18 @@ type HealthResponse struct {
 }
 
 func main() {
-	// Initialize tracing
-	tp, err := tracing.InitTracer("analytics-service")
-	if err != nil {
-		log.Printf("[Analytics Service] Failed to initialize tracer: %v", err)
+	// Initialize tracing (опционально, только если JAEGER_AGENT_HOST задан)
+	if jaegerHost := os.Getenv("JAEGER_AGENT_HOST"); jaegerHost != "" {
+		log.Println("[Analytics Service] Initializing distributed tracing...")
+		tp, err := tracing.InitTracer("analytics-service")
+		if err != nil {
+			log.Printf("[Analytics Service] ⚠️  Failed to initialize tracer: %v", err)
+		} else {
+			defer tracing.Shutdown(context.Background(), tp)
+			log.Println("[Analytics Service] ✅ Distributed tracing enabled")
+		}
 	} else {
-		defer tracing.Shutdown(context.Background(), tp)
+		log.Println("[Analytics Service] ℹ️  Distributed tracing disabled (JAEGER_AGENT_HOST not set)")
 	}
 
 	initMongoDB()
