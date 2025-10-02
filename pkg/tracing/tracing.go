@@ -54,7 +54,7 @@ func Shutdown(ctx context.Context, tp *tracesdk.TracerProvider) {
 		return
 	}
 	if err := tp.Shutdown(ctx); err != nil {
-		log.Printf("[Tracing] Error shutting down tracer: %v", err)
+		log.Printf("[Tracing] Error shut down tracer: %v", err)
 	}
 }
 
