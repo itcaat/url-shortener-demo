@@ -89,7 +89,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("[API Gateway] Server starting on port %s\n", port)
+		log.Printf("[API Gateway] Server starting. Port %s\n", port)
 		log.Printf("[API Gateway] Shortener Service: %s\n", shortenerServiceURL)
 		log.Printf("[API Gateway] Analytics Service: %s\n", analyticsServiceURL)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
