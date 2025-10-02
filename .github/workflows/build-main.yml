@@ -49,7 +49,7 @@ jobs:
         id: set-matrix
         run: |
           # Находим все директории с Dockerfile
-          ALL_SERVICES=$(find . -maxdepth 2 -name "Dockerfile" -type f | sed 's|^\./||' | sed 's|/Dockerfile$||' | jq -R -s 'split("\n") | map(select(length > 0))')
+          ALL_SERVICES=$(find . -maxdepth 2 -name "Dockerfile" -type f | sed 's|^\./||' | sed 's|/Dockerfile$||' | jq -R -s 'split("\n") | map(select(length > 0))' | jq -c .)
           echo "All services with Dockerfile: $ALL_SERVICES"
           
           # Получаем измененные файлы и убираем экранирование
@@ -59,12 +59,12 @@ jobs:
           
           # Если изменился pkg/, пересобираем все Go сервисы (с go.mod)
           if echo "$CHANGED_DIRS" | jq -e 'index("pkg")' > /dev/null 2>&1; then
-            SERVICES=$(find . -maxdepth 2 -name "go.mod" -type f | sed 's|^\./||' | sed 's|/go.mod$||' | jq -R -s 'split("\n") | map(select(length > 0))')
+            SERVICES=$(find . -maxdepth 2 -name "go.mod" -type f | sed 's|^\./||' | sed 's|/go.mod$||' | jq -R -s 'split("\n") | map(select(length > 0))' | jq -c .)
             echo "pkg/ changed, rebuilding all Go services: $SERVICES"
           else
             # Фильтруем: оставляем только измененные директории с Dockerfile
             SERVICES=$(jq -nc --argjson all "$ALL_SERVICES" --argjson changed "$CHANGED_DIRS" \
-              '$changed | map(select(. as $dir | $all | index($dir)))')
+              '$changed | map(select(. as $dir | $all | index($dir)))' | jq -c .)
             echo "Changed services: $SERVICES"
           fi
           
